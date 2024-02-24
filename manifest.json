@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "codewithmosh downloader",
+    "version": "1.0",
+    "description": "Codewithmosh crawler",
+    "host_permissions": [
+        "*://*.codewithmosh.org/"
+    ],
+    "permissions": [
+        "downloads",
+        "activeTab"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "action": {
+        "default_popup": "popup.html"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://*.codewithmosh.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "css": [
+                "content.css"
+            ]
+        }
+    ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+    }
+}
