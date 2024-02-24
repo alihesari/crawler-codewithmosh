@@ -59,3 +59,7 @@
 .lessonCrawlerButtonCrawled {
     background-color: #0f6e00;
 }
+
+.lessonCrawlerButtonNotDownloadable {
+    background-color: red;
+}

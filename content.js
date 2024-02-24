@@ -42,8 +42,13 @@ function renderLessonCrawler() {
                 const link = document.querySelector(lesson.selector);
                 if (link) {
                     link.click();
-                    extractedLessonsData[key].status = "ReadyToDownload";
-                    renderCrawlerButton(key, lesson, "Pending", "ReadyToDownload");
+
+                    setTimeout(function() {
+                        if (window.location.href.indexOf(key) >= 0) {
+                            extractedLessonsData[key].status = "ReadyToDownload";
+                            renderCrawlerButton(key, lesson, "Pending", "ReadyToDownload");
+                        }
+                    }, 1000)
                 }
             } else if (lesson.status === "ReadyToDownload") {
                 let downloadLink = document.querySelector('.download');
@@ -54,10 +59,12 @@ function renderLessonCrawler() {
                     extractedLessonsData[key].status = "Crawled";
                     renderCrawlerButton(key, lesson, "ReadyToDownload", "Crawled");
                     chrome.runtime.sendMessage({ 
-                        command: "updateLessonData", 
-                        data: extractedLessonsData, 
+                        command: "updateDownloadedLessonKey", 
                         downloadedLessonKey: key 
                     });
+                } else {
+                    extractedLessonsData[key].status = "Not downloadable";
+                    renderCrawlerButton(key, lesson, "ReadyToDownload", "NotDownloadable");
                 }
             }
         });

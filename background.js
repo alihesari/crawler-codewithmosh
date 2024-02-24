@@ -16,10 +16,10 @@ chrome.downloads.onCreated.addListener(function (downloadItem) {
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message.command === 'updateLessonData') {
         lessonsData = message.data;
+    }
 
-        if (message.downloadedLessonKey) {
-            downloadedLessonKey = message.downloadedLessonKey
-        }
+    if (message.command === "updateDownloadedLessonKey") {
+        downloadedLessonKey = message.downloadedLessonKey
     }
 
     if (message.command === 'downloadDataFile') {
