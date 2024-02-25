@@ -13,13 +13,37 @@ function initCrawler() {
 initCrawler();
 
 document.getElementById("getLeasons").addEventListener("click", function () {
-    extractedLessonsData = getAllLeasonsLinks();
+    const tempData = JSON.parse(getData());
+    console.log("tempData", tempData)
+    if (tempData !== null) {
+        let lessonKeys = Object.keys(tempData);
+        for (let i = 0; i < lessonKeys.length; i++) {
+            let key = lessonKeys[i];
+            let lesson = tempData[key];
+            if (lesson.status === "ReadyToDownload") {
+                lesson.status = "Pending"
+            }
+            tempData[key] = lesson;
+        }
+        extractedLessonsData = tempData;
+    } else {
+        extractedLessonsData = getAllLeasonsLinks();
+    }
+    setData(JSON.stringify(extractedLessonsData));
     chrome.runtime.sendMessage({ command: "updateLessonData", data: extractedLessonsData });
     renderLessonCrawler();
 });
 
 document.getElementById('downloadDataFile').addEventListener('click', function () {
     chrome.runtime.sendMessage({ command: 'downloadDataFile' });
+});
+
+chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
+    if (message.command === 'updateStorage') {
+        console.log("updateStorage string", JSON.stringify(message))
+        extractedLessonsData[key].fileName = message.fileName;
+        setData(JSON.stringify(extractedLessonsData));
+    }
 });
 
 function renderLessonCrawler() {
@@ -43,10 +67,11 @@ function renderLessonCrawler() {
                 if (link) {
                     link.click();
 
-                    setTimeout(function() {
+                    setTimeout(function () {
                         if (window.location.href.indexOf(key) >= 0) {
                             extractedLessonsData[key].status = "ReadyToDownload";
                             renderCrawlerButton(key, lesson, "Pending", "ReadyToDownload");
+                            setData(JSON.stringify(extractedLessonsData));
                         }
                     }, 1000)
                 }
@@ -58,13 +83,15 @@ function renderLessonCrawler() {
                     window.open(link, "_blank");
                     extractedLessonsData[key].status = "Crawled";
                     renderCrawlerButton(key, lesson, "ReadyToDownload", "Crawled");
-                    chrome.runtime.sendMessage({ 
-                        command: "updateDownloadedLessonKey", 
-                        downloadedLessonKey: key 
+                    setData(JSON.stringify(extractedLessonsData));
+                    chrome.runtime.sendMessage({
+                        command: "updateDownloadedLessonKey",
+                        downloadedLessonKey: key
                     });
                 } else {
                     extractedLessonsData[key].status = "Not downloadable";
                     renderCrawlerButton(key, lesson, "ReadyToDownload", "NotDownloadable");
+                    setData(JSON.stringify(extractedLessonsData));
                 }
             }
         });
@@ -72,11 +99,30 @@ function renderLessonCrawler() {
     }
 }
 
+function setData(data) {
+    localStorage.setItem('extractedLessonsData', data);
+}
+
+function getData() {
+    const value = localStorage.getItem('extractedLessonsData');
+    if (value !== null) {
+        return value;
+    } else {
+        return null;
+    }
+}
+
+function getExpiryDate(days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    return date.toUTCString();
+}
+
 function renderCrawlerButton(key, lesson, oldStatus, newStatus) {
     const button = document.querySelector(`button[lesson-key="${key}"]`);
     if (button) {
-        button.classList.remove("lessonCrawlerButton"+oldStatus);
-        button.classList.add("lessonCrawlerButton"+newStatus);
+        button.classList.remove("lessonCrawlerButton" + oldStatus);
+        button.classList.add("lessonCrawlerButton" + newStatus);
         button.innerHTML = `${lesson.lessonName} - ${lesson.status}`;
     }
 }

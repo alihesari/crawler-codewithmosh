@@ -6,11 +6,16 @@ chrome.downloads.onCreated.addListener(function (downloadItem) {
     var parts = link.substr(0, link.indexOf(".mp4?") + 4).split("/");
     var fileName = parts[parts.length - 1];
 
-    console.log("fileName", fileName);
-    if (downloadedLessonKey !== null) {
-        lessonsData[downloadedLessonKey].fileName = fileName;
-        downloadedLessonKey = null;
-    }
+    setTimeout(function () {
+        if (downloadedLessonKey !== null) {
+            lessonsData[downloadedLessonKey].fileName = fileName;
+            downloadedLessonKey = null;
+
+            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                chrome.tabs.sendMessage(tabs[0].id, { command: "updateStorage", key: downloadedLessonKey, fileName });
+            });
+        }
+    }, 1000)
 });
 
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
@@ -41,7 +46,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             const blobUrl = `data:${blob.type};base64,${btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''))}`;
             chrome.downloads.download({
                 url: blobUrl,
-                filename: "leasons.txt",
+                filename: "lesson.csv",
                 saveAs: false,
                 conflictAction: "uniquify"
             }, () => {
