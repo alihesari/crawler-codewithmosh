@@ -1,9 +1,11 @@
 var extractedLessonsData = {};
+var readyToDownload = true;
 function initCrawler() {
     const htmlCode = `
     <div id="contentCrawler">
         <button class="crawlerButton" id="getLeasons">Get Lessons</button>
         <button class="crawlerButton" id="downloadDataFile">Download Data File</button>
+        <button class="crawlerButton btn-red" id="cleanStorage">Clean Storage</button>
         <div id="lessonCrawlerContainer"></div>
     </div>
     `;
@@ -14,7 +16,6 @@ initCrawler();
 
 document.getElementById("getLeasons").addEventListener("click", function () {
     const tempData = JSON.parse(getData());
-    console.log("tempData", tempData)
     if (tempData !== null) {
         let lessonKeys = Object.keys(tempData);
         for (let i = 0; i < lessonKeys.length; i++) {
@@ -38,64 +39,122 @@ document.getElementById('downloadDataFile').addEventListener('click', function (
     chrome.runtime.sendMessage({ command: 'downloadDataFile' });
 });
 
+document.getElementById('cleanStorage').addEventListener('click', function () {
+    if (confirm("Are you sure to clean the storage?")) {
+        localStorage.removeItem("extractedLessonsData");
+        location.reload();
+    }
+});
+
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message.command === 'updateStorage') {
-        console.log("updateStorage string", JSON.stringify(message))
-        extractedLessonsData[key].fileName = message.fileName;
-        setData(JSON.stringify(extractedLessonsData));
+        if (message.key && message.fileName && extractedLessonsData[message.key]) {
+            console.log("updateStorage string", JSON.stringify(message))
+            extractedLessonsData[message.key].fileName = message.fileName;
+            setData(JSON.stringify(extractedLessonsData));
+            readyToDownload = true;
+        } else {
+            console.log("error on content.js - updateStorage - ", {
+                message,
+                itemExists: extractedLessonsData[message.key]
+            })
+        }
     }
 });
 
 function renderLessonCrawler() {
     let lessonKeys = Object.keys(extractedLessonsData);
     const container = document.getElementById('lessonCrawlerContainer');
-    for (let i = 0; i < lessonKeys.length; i++) {
-        let key = lessonKeys[i];
-        let lesson = extractedLessonsData[key];
+    try {
+        for (let i = 0; i < lessonKeys.length; i++) {
+            let key = lessonKeys[i];
+            let lesson = extractedLessonsData[key];
 
-        const button = document.createElement('button');
-        button.classList.add(`lessonCrawlerButton`);
-        button.classList.add(`lessonCrawlerButton${lesson.status}`)
-        button.setAttribute('lesson-key', key);
-        button.textContent = `${lesson.lessonName} - ${lesson.status}`;
-        button.addEventListener("click", function () {
-            const key = this.getAttribute("lesson-key");
-            const lesson = extractedLessonsData[key];
+            console.log("render button", {
+                key,
+                lesson
+            })
 
-            if (lesson.status === "Pending") {
-                const link = document.querySelector(lesson.selector);
-                if (link) {
-                    link.click();
+            const button = document.createElement('button');
+            button.classList.add(`lessonCrawlerButton`);
+            button.classList.add(`lessonCrawlerButton${lesson.status}`)
+            button.setAttribute('lesson-key', key);
+            button.textContent = `${lesson.lessonName} - ${lesson.status}`;
+            button.addEventListener("click", function () {
+                const key = this.getAttribute("lesson-key");
+                const lesson = extractedLessonsData[key];
 
-                    setTimeout(function () {
-                        if (window.location.href.indexOf(key) >= 0) {
-                            extractedLessonsData[key].status = "ReadyToDownload";
-                            renderCrawlerButton(key, lesson, "Pending", "ReadyToDownload");
-                            setData(JSON.stringify(extractedLessonsData));
+                if (lesson.status === "Pending") {
+                    const link = document.querySelector(lesson.selector);
+                    if (link) {
+                        link.click();
+
+                        if (readyToDownload === false) {
+                            console.log("Wait for loading...");
+                            return;
                         }
-                    }, 1000)
+
+                        setTimeout(function () {
+                            if (window.location.href.indexOf(key) >= 0) {
+                                extractedLessonsData[key].status = "ReadyToDownload";
+                                renderCrawlerButton(key, lesson, "Pending", "ReadyToDownload");
+                                setData(JSON.stringify(extractedLessonsData));
+                            }
+                        }, 1000)
+                    }
+                } else if (lesson.status === "ReadyToDownload") {
+                    let downloadLink = document.querySelector('.download');
+                    if (downloadLink) {
+                        let fileName = downloadLink.innerText.trim();
+                        let link = downloadLink.getAttribute('href');
+
+                        if (link.indexOf("http") > -1) {
+                            link = "https://members.codewithmosh.com" + link;
+                        }
+
+                        const pdfAttr = downloadLink.getAttribute("data-x-origin-download-name");
+                        if (pdfAttr && pdfAttr.indexOf(".pdf")) {
+                            console.log("download pdf link: ", link);
+                            // download pdf
+                            fetch(link)
+                            .then(response => response.blob())
+                            .then(blob => {
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = fileName;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                window.URL.revokeObjectURL(url);
+                            })
+                            .catch(error => {
+                                console.error('Error downloading PDF:', error);
+                            });
+                        } else {
+                            // download video
+                            window.open(link, "_blank");
+                        }
+                        
+                        extractedLessonsData[key].status = "Crawled";
+                        renderCrawlerButton(key, lesson, "ReadyToDownload", "Crawled");
+                        setData(JSON.stringify(extractedLessonsData));
+                        chrome.runtime.sendMessage({
+                            command: "updateDownloadedLessonKey",
+                            downloadedLessonKey: key
+                        });
+                        readyToDownload = false;
+                    } else {
+                        extractedLessonsData[key].status = "NotDownloadable";
+                        renderCrawlerButton(key, lesson, "ReadyToDownload", "NotDownloadable");
+                        setData(JSON.stringify(extractedLessonsData));
+                    }
                 }
-            } else if (lesson.status === "ReadyToDownload") {
-                let downloadLink = document.querySelector('.download');
-                if (downloadLink) {
-                    const hrefValue = downloadLink.getAttribute('href');
-                    const link = "https://members.codewithmosh.com" + hrefValue;
-                    window.open(link, "_blank");
-                    extractedLessonsData[key].status = "Crawled";
-                    renderCrawlerButton(key, lesson, "ReadyToDownload", "Crawled");
-                    setData(JSON.stringify(extractedLessonsData));
-                    chrome.runtime.sendMessage({
-                        command: "updateDownloadedLessonKey",
-                        downloadedLessonKey: key
-                    });
-                } else {
-                    extractedLessonsData[key].status = "Not downloadable";
-                    renderCrawlerButton(key, lesson, "ReadyToDownload", "NotDownloadable");
-                    setData(JSON.stringify(extractedLessonsData));
-                }
-            }
-        });
-        container.appendChild(button);
+            });
+            container.appendChild(button);
+        }
+    } catch (error) {
+        console.log("Error renderLessonCrawler", error)
     }
 }
 

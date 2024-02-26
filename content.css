@@ -25,17 +25,21 @@
     margin-bottom: 5px;
 }
 
+.btn-red {
+    background-color: red !important;
+}
+
 .crawlerButton:hover {
     background-color: #45a049;
     /* Darker green */
 }
 
 #lessonCrawlerContainer {
-    margin-top: 5px;
+    margin-top: 50px;
+    margin-bottom: 50px;
     display: flex;
     flex-direction: column;
     overflow: scroll;
-    min-height: 100%;
 }
 
 .lessonCrawlerButton {
